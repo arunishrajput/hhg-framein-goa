@@ -1,57 +1,51 @@
-# Frame In Goa — docs bundle
+# Frame In Goa
 
-Everything needed to build and ship the **HH Goa 2026 Task #1** submission with Claude Code.
+![Frame In Goa — drop a photo, get a branded HH Goa 2026 frame](docs/assets/readme-screenshot.jpg)
 
-**Deadline:** 11:59 pm IST, 13 Aug 2026 · **Ship target:** post 11 Aug, submit 12 Aug.
+**Live:** [hhg-framein-goa.vercel.app](https://hhg-framein-goa.vercel.app)
+Built by **Nether Navigator** for the **Hacker House Goa 2026** Task #1 shortlisting challenge.
 
-Claude Code works in phases (`docs/05`); every date lives in `docs/09` and is yours to manage.
+Drop a photo, get a branded HH Goa 2026 graphic in under two seconds — no login, no crop step,
+no signup. Three formats: a **PFP frame** (circular, survives X's avatar crop), a **Builder ID**
+card, and a **Crew Card** for 2–4 teammates in one frame. Download the real PNG, or post straight
+to X with a caption and a share link whose preview shows the actual generated graphic.
 
-## Project identity — all settled
+## Architecture
 
-| | |
-|---|---|
-| Team | **Nether Navigator** |
-| X | **@arunishrajput** |
-| Repo | **HHG-FRAMEIN-GOA** |
-| Deploy | Vercel, `*.vercel.app` — no custom domain (`docs/10` D7) |
-| Crew Card default | 3 slots, supports 2–4 (`docs/10` D8) |
+Everything that ends up in a PNG is drawn by one `render(spec)` Canvas 2D pipeline
+(`lib/render/`) — the on-screen preview and the downloaded file are the same code path, never a
+styled `<div>` masquerading as the output. Sharing uploads the PNG to Vercel Blob only at the
+moment someone taps "Post on X"; `/s/[id]` then serves real per-card OG metadata so the X link
+preview shows the actual card, not a static fallback.
 
-Team name, handle and repo live in `TEAM` in `lib/render/tokens.ts`. The origin lives in
-`NEXT_PUBLIC_SITE_URL` and **nowhere else** — not in a component, not in a test fixture.
-Confirm the real Vercel URL at P4 and set the env var from what Vercel actually gives you.
+## Run locally
 
-## How to use this
+```bash
+pnpm install
+pnpm dev          # http://localhost:3000
+```
 
-1. Create the repo, drop `CLAUDE.md` at the root and this `docs/` folder beside it.
-2. Open Claude Code in that directory.
-3. Paste the **Session 0 — Bootstrap** prompt from `docs/06-CLAUDE-CODE-PROMPTS.md`.
-   Let it read everything and summarise back before it writes a line of code.
-4. Then work through the phase prompts in order.
+Works with zero env vars — HEIC decoding, face-aware auto-framing, and rendering all run
+client-side. Two optional vars unlock the share pipeline in dev (see `.env.example`):
 
-`CLAUDE.md` is the file Claude Code reads every session. If you change one thing in this bundle,
-change that one — it wins over everything in `docs/`.
+```bash
+BLOB_READ_WRITE_TOKEN=   # Vercel Blob — needed for /api/share to actually upload
+NEXT_PUBLIC_SITE_URL=    # absolute origin for share links; defaults to localhost in dev
+```
 
-## The files
+```bash
+pnpm build && pnpm start   # production build + serve
+pnpm test                  # vitest — render-contract + identity-generator tests
+pnpm typecheck && pnpm lint
+```
 
-| File | What it is |
-|---|---|
-| `CLAUDE.md` | The operating manual — non-negotiables, stack, render contract, share pipeline, traps |
-| `docs/00-BRIEF-AND-INTEL.md` | The task, the extra requirements hidden on hhgoa.com, the leaderboard, what 6+ competitors already shipped |
-| `docs/01-PRD.md` | Scope, users, flow, success criteria, what we're explicitly not building |
-| `docs/02-DESIGN-SYSTEM.md` | Exact brand palette (sampled from HH Goa's own artwork), type, motion, voice |
-| `docs/03-ARTBOARD-SPEC.md` | Pixel-exact geometry for all three output graphics |
-| `docs/04-ARCHITECTURE.md` | Data flow, image pipeline, the OG-image share pipeline, perf budgets, risk register |
-| `docs/05-BUILD-PLAN.md` | Six phases with exit criteria and cut lines — no dates, by design |
-| `docs/06-CLAUDE-CODE-PROMPTS.md` | Copy-paste prompts, one per phase |
-| `docs/07-QA-AND-LAUNCH.md` | Device matrix, torture tests, pre-post and pre-submit checklists |
-| `docs/08-X-POST-PLAYBOOK.md` | Caption copy, the launch thread, timing, and why the post is scored |
-| `docs/09-SCHEDULE.md` | Your calendar — every date in the project, kept out of Claude Code's way |
-| `docs/10-DECISIONS.md` | Settled ambiguities with rationale, so no session re-litigates them |
+## Stack
 
-## The three-sentence version
+Next.js 15 (App Router) · TypeScript strict · Tailwind CSS v4 · Canvas 2D rendering ·
+`@mediapipe/tasks-vision` for face-aware auto-framing (lazy-loaded, falls back silently) ·
+`heic-to` for iPhone photos (lazy-loaded) · Vercel Blob for share-link image hosting.
 
-Everyone is building the same green-and-palm badge with a random title and a download button.
-We win on the three things the brief actually names and the field actually missed: **auto-framing any
-photo without a crop step**, **a share link whose preview is the real generated graphic**, and
-**artwork drawn from HH Goa's own visual language** rather than a logo pasted on a template.
-Then we pair it with a how-to post, because the leaderboard scores replies, not impressions.
+## Docs
+
+The full spec — brand system, exact artboard geometry, architecture, build plan, decision log —
+lives in [`docs/`](docs/) and [`CLAUDE.md`](CLAUDE.md).
