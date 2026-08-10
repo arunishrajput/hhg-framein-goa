@@ -16,7 +16,13 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(Math.max(v, lo), hi)
 }
 
-/** Builds a rounded-rect path. Caller fills/strokes — this never touches fillStyle. */
+/**
+ * Builds a rounded-rect path. Caller fills/strokes — this never touches fillStyle.
+ *
+ * Each corner radius is clamped to at most half of `w`/`h` — canvas's `arcTo`, unlike CSS
+ * `border-radius`, doesn't clamp an oversized radius on its own, so the common "999 for a full
+ * pill" idiom would otherwise draw a self-intersecting path instead of a stadium shape.
+ */
 export function roundRect(
   ctx: Ctx2D,
   x: number,
@@ -25,8 +31,10 @@ export function roundRect(
   h: number,
   radius: number | [number, number, number, number],
 ): void {
-  const [tl, tr, br, bl] =
+  const max = Math.min(w, h) / 2
+  const [tl, tr, br, bl] = (
     typeof radius === 'number' ? [radius, radius, radius, radius] : radius
+  ).map((r) => clamp(r, 0, max))
 
   ctx.beginPath()
   ctx.moveTo(x + tl, y)
@@ -264,9 +272,11 @@ function wrapLines(ctx: Ctx2D, text: string, maxWidth: number): string[] {
   return lines
 }
 
-function ellipsise(ctx: Ctx2D, text: string, maxWidth: number): string {
+/** `force` skips the fits-already early-out — used when the line itself is short enough to fit
+ * but text after it got dropped by the maxLines cap, so it still needs to signal truncation. */
+function ellipsise(ctx: Ctx2D, text: string, maxWidth: number, force = false): string {
   const ELLIPSIS = '…'
-  if (ctx.measureText(text).width <= maxWidth) return text
+  if (!force && ctx.measureText(text).width <= maxWidth) return text
 
   let lo = 0
   let hi = text.length
@@ -323,10 +333,54 @@ export function fitText(
 
   ctx.font = font(minSize)
   let lines = wrapLines(ctx, text, maxWidth)
-  if (lines.length > maxLines) {
+  const truncated = lines.length > maxLines
+  if (truncated) {
     lines = lines.slice(0, maxLines)
   }
   const lastIndex = lines.length - 1
-  lines[lastIndex] = ellipsise(ctx, lines[lastIndex], maxWidth)
+  // Force the ellipsis whenever lines got dropped, even if the kept line fits on its own —
+  // otherwise trailing content (e.g. a name's last part) vanishes with no visible sign it's gone.
+  lines[lastIndex] = ellipsise(ctx, lines[lastIndex], maxWidth, truncated)
   return { size: minSize, lines }
+}
+
+/**
+ * Straight (non-arc) letter-spaced text — every label, id and footer line on Formats B and C uses
+ * this. Tracking on uppercase mono is load-bearing (docs/02 §3); plain `ctx.fillText` has no way
+ * to add it, so this exists instead of a bare fillText call scattered through every artboard.
+ */
+export interface TrackedTextOptions {
+  font: string
+  color: string
+  tracking?: number // px, added between glyphs
+  align?: 'left' | 'right' | 'center'
+  baseline?: CanvasTextBaseline
+}
+
+/** Returns the total rendered width, in px — useful for callers that need to lay out around it. */
+export function drawTrackedText(
+  ctx: Ctx2D,
+  text: string,
+  x: number,
+  y: number,
+  opts: TrackedTextOptions,
+): number {
+  const { font, color, tracking = 0, align = 'left', baseline = 'alphabetic' } = opts
+  ctx.font = font
+
+  const glyphs = Array.from(text)
+  const widths = glyphs.map((g) => ctx.measureText(g).width)
+  const totalWidth = widths.reduce((sum, w) => sum + w, 0) + tracking * Math.max(0, glyphs.length - 1)
+
+  let cursorX = align === 'left' ? x : align === 'right' ? x - totalWidth : x - totalWidth / 2
+
+  ctx.fillStyle = color
+  ctx.textAlign = 'left'
+  ctx.textBaseline = baseline
+  for (let i = 0; i < glyphs.length; i++) {
+    ctx.fillText(glyphs[i], cursorX, y)
+    cursorX += widths[i] + tracking
+  }
+
+  return totalWidth
 }

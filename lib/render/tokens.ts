@@ -19,6 +19,8 @@ export const COLOR = {
 
 export const EVENT = {
   name: 'HACKER HOUSE GOA',
+  nameShort: 'HH GOA', // docs/03 §2 hero-ring band text ("HH GOA 2026 · 28–31 OCT ·") — the full
+  // name doesn't fit legibly at the smaller ring scales used on Formats B and C
   year: '2026',
   dates: '28–31 OCT 2026',
   place: 'GOA, INDIA',

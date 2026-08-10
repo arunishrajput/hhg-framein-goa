@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitText, textOnArc, type Ctx2D } from './primitives'
+import { drawTrackedText, fitText, roundRect, textOnArc, type Ctx2D } from './primitives'
 
 /**
  * A minimal stand-in for CanvasRenderingContext2D that tracks the save/translate/rotate transform
@@ -210,6 +210,25 @@ describe('fitText', () => {
     expect(widthAt(result.lines[0], result.size)).toBeLessThanOrEqual(maxWidth)
   })
 
+  it('signals truncation on the last line even when that line individually fits maxWidth', () => {
+    // "Bartholomew Vengeance Chatterjee-Rao" at minSize wraps to 3 short-ish lines; with
+    // maxLines=2 the 2nd kept line ("Vengeance") is well under maxWidth on its own — without
+    // forcing, ellipsise() would leave it untouched and "Chatterjee-Rao" would vanish silently.
+    const ctx = fitCtx()
+    const text = 'Bartholomew Vengeance Chatterjee-Rao'
+    const maxWidth = 300
+    const result = fitText(ctx, text, maxWidth, {
+      font: (size) => `${size}px x`,
+      maxSize: 56,
+      minSize: 56,
+      maxLines: 2,
+    })
+
+    expect(result.lines).toHaveLength(2)
+    expect(result.lines[1].endsWith('…')).toBe(true)
+    expect(widthAt(result.lines[1], result.size)).toBeLessThanOrEqual(maxWidth)
+  })
+
   it('allowing more lines never forces a smaller size than a tighter maxLines', () => {
     const ctx1 = fitCtx()
     const ctx2 = fitCtx()
@@ -221,5 +240,85 @@ describe('fitText', () => {
     const twoLines = fitText(ctx2, text, maxWidth, { ...opts, maxLines: 2 })
 
     expect(twoLines.size).toBeGreaterThanOrEqual(oneLine.size)
+  })
+})
+
+describe('drawTrackedText', () => {
+  it('draws glyphs left-to-right starting at x when align is left', () => {
+    const ctx = arcCtx(20)
+    drawTrackedText(ctx, 'AB', 100, 50, { font: '16px x', color: '#000' })
+
+    expect(ctx.calls).toEqual([
+      { glyph: 'A', x: 100, y: 50, angleDeg: 0 },
+      { glyph: 'B', x: 120, y: 50, angleDeg: 0 },
+    ])
+  })
+
+  it('ends flush at x when align is right', () => {
+    const ctx = arcCtx(20)
+    drawTrackedText(ctx, 'AB', 100, 50, { font: '16px x', color: '#000', align: 'right' })
+
+    // total width 40 (2 glyphs × 20px, no tracking) — first glyph starts at 100-40=60
+    expect(ctx.calls[0]).toEqual({ glyph: 'A', x: 60, y: 50, angleDeg: 0 })
+    expect(ctx.calls[1]).toEqual({ glyph: 'B', x: 80, y: 50, angleDeg: 0 })
+  })
+
+  it('centers symmetrically about x when align is center', () => {
+    const ctx = arcCtx(20)
+    drawTrackedText(ctx, 'AB', 100, 50, { font: '16px x', color: '#000', align: 'center' })
+
+    // total width 40 — starts at 100-20=80
+    expect(ctx.calls[0].x).toBe(80)
+    expect(ctx.calls[1].x).toBe(100)
+  })
+
+  it('adds tracking between glyphs but not after the last one', () => {
+    const ctx = arcCtx(20)
+    const total = drawTrackedText(ctx, 'AB', 0, 0, { font: '16px x', color: '#000', tracking: 10 })
+
+    expect(ctx.calls[1].x).toBe(30) // 20 (glyph A width) + 10 tracking
+    expect(total).toBe(50) // 20 + 10 + 20, no trailing tracking
+  })
+
+  it('returns 0 width and draws nothing for an empty string', () => {
+    const ctx = arcCtx(20)
+    const total = drawTrackedText(ctx, '', 0, 0, { font: '16px x', color: '#000' })
+
+    expect(ctx.calls).toHaveLength(0)
+    expect(total).toBe(0)
+  })
+})
+
+/** Records just the path-building calls roundRect makes — enough to assert the clamped radius. */
+class PathMockCtx2D {
+  readonly arcToRadii: number[] = []
+  beginPath() {}
+  closePath() {}
+  moveTo() {}
+  lineTo() {}
+  arcTo(_x1: number, _y1: number, _x2: number, _y2: number, radius: number) {
+    this.arcToRadii.push(radius)
+  }
+}
+
+describe('roundRect', () => {
+  it('passes a small, well-bounded radius through unchanged', () => {
+    const ctx = new PathMockCtx2D() as unknown as Ctx2D & PathMockCtx2D
+    roundRect(ctx, 0, 0, 200, 100, 12)
+    expect(ctx.arcToRadii.every((r) => r === 12)).toBe(true)
+  })
+
+  it('clamps an oversized radius (the CSS "999 for a pill" idiom) to half the short side', () => {
+    const ctx = new PathMockCtx2D() as unknown as Ctx2D & PathMockCtx2D
+    roundRect(ctx, 0, 0, 200, 84, 999)
+    // canvas arcTo doesn't self-clamp like CSS border-radius does — without clamping here, this
+    // radius would draw a self-intersecting path instead of a stadium shape.
+    expect(ctx.arcToRadii.every((r) => r === 42)).toBe(true)
+  })
+
+  it('clamps each corner of a mixed radius array independently', () => {
+    const ctx = new PathMockCtx2D() as unknown as Ctx2D & PathMockCtx2D
+    roundRect(ctx, 0, 0, 200, 50, [0, 0, 999, 999])
+    expect(ctx.arcToRadii).toEqual([0, 25, 25, 0])
   })
 })

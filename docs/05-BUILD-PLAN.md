@@ -16,20 +16,65 @@ Arunish's to manage.
 > where it is without guessing.
 
 ```
-CURRENT PHASE: P2 (complete) — ready to start P3
+CURRENT PHASE: P3 (complete) — ready to start P4
 P0 scaffold        [x]
 P1 pfp renderer    [x]
 P2 photo pipeline  [x]
-P3 id + crew       [ ]
+P3 id + crew       [x]
 P4 share pipeline  [ ]
 P5 polish + ship   [ ]
 
 BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion still needs a real device.
   P1's own exit criterion (download the PNG, set as a real X profile picture) also needs a human
   with an X account — verified everything short of that in /lab (r=512 mask overlay, all three
-  fixtures) and it holds with clean margin. P2's real-device passes (HEIC straight off an iPhone,
-  paste-from-clipboard on desktop, drag-drop) are unverified beyond code review + the file-input
-  path — same "needs a human with real hardware" gap as P0/P1.
+  fixtures) and it holds with clean margin. P2's and P3's real-device passes (HEIC straight off an
+  iPhone, paste-from-clipboard, drag-drop, real touch pinch-zoom) are unverified beyond code
+  review + the file-input/synthetic-pointer-event path — same "needs a human with real hardware"
+  gap as P0/P1, now carried through every phase since.
+
+P3 NOTES:
+  - Formats B and C both verified end-to-end in a real Chrome tab, not just /lab
+    (`docs/assets/p3-lab-artboards.jpg` — the id/crew half of the grid, both text-stress cells
+    visible): photo upload ->
+    instant placeholder-filled preview -> live debounced re-render on every field edit -> reroll ->
+    (crew only) add/remove/reorder members -> download. No console errors on any of it.
+  - The text-stress case (name "Bartholomew Vengeance Chatterjee-Rao", role "Distributed Systems ·
+    Rust · Zero-Knowledge Proofs") was run both in /lab and by typing it into the live Builder ID
+    form. It surfaced a real, previously-latent bug in `fitText` (lib/render/primitives.ts, shipped
+    in P1): when wrapping produced more lines than `maxLines` allowed, the kept last line only got
+    an ellipsis if *that line itself* overflowed `maxWidth` — a short last line (e.g. "Vengeance")
+    left "Chatterjee-Rao" silently dropped with no visible sign anything was cut. Fixed by forcing
+    the ellipsis whenever lines were truncated, regardless of the kept line's own width. New
+    regression test locks this in (`lib/render/primitives.test.ts`).
+  - `lib/render/ring.ts` extracts the docs/03 §0 ring system (photo/hairline/band/curved-text/
+    orbit/pip) as one function shared by builderId.ts and crew.ts — pfp.ts keeps its own inlined,
+    already-shipped copy rather than being retrofitted onto it (regression risk vs. a cosmetic
+    dedupe). Verified the shared version reproduces the same ratios pfp.ts hardcodes at R=430, and
+    that the "no dash terminates under the pip" property (docs/03 §0) holds at any R because dash
+    length, orbit radius, and dash offset are all proportional to R while the pip angle is fixed —
+    confirmed empirically at R=268 (Builder ID) and R=128 (Crew) in /lab.
+  - Found and fixed a real bug in `roundRect` (lib/render/primitives.ts, shipped in P1 but never
+    exercised with an oversized radius until the day-rail pills): canvas `arcTo` doesn't clamp an
+    oversized corner radius the way CSS `border-radius` does, so the "999 for a full pill" idiom
+    drew a self-intersecting path instead of a stadium shape. Fixed by clamping each corner to at
+    most half of the shorter side; added regression tests.
+  - `lib/render/index.ts`'s DRAW lookup (`{format: DrawFn}`, worked fine with one variant in P1)
+    stopped type-checking once CardSpec became a real union — calling a value pulled from a record
+    of function types requires the argument to satisfy the intersection of their parameter types,
+    which collapses to `never` once the variants' fields diverge. Replaced with a switch statement,
+    which lets TypeScript narrow `spec` per case instead.
+  - `lib/generator/usePhotoPipeline.ts` is new shared plumbing (decode -> autoframe -> adjust,
+    deliberately *not* owning render()) used by the Builder ID and Crew hooks so Crew's 2-4 slots
+    don't duplicate the pipeline. `useGenerator.ts` (pfp, P2) keeps its own self-contained
+    implementation rather than being refactored onto this — same "don't touch a shipped, verified
+    path for a dedupe" call as ring.ts above.
+  - Crew's multi-slot state uses a fixed 4 `usePhotoPipeline()` calls always (React's rules of
+    hooks don't allow a variable count) plus an `order: number[]` permutation array — add/remove/
+    reorder only ever permute `order`, never move state between hook instances.
+  - No per-member Adjust drawer on the Crew Card — auto-framing still runs per member, but there's
+    no manual pan/zoom override UI per slot. Not in docs/03 §3's scope, and the added complexity
+    (which of 2-4 photos does a single drawer control?) wasn't worth it for a format most people
+    will use at the untouched 3-member default (docs/10 D8).
 
 P2 NOTES:
   - All six docs/03 §5 fixtures verified framing acceptably with zero manual input in /lab
@@ -188,18 +233,26 @@ hardware" gap as the rest of this phase.
 
 **Goal.** All three formats produce correct PNGs from real photos.
 
-- [ ] `lib/identity/builderClass.ts` — exactly 247 classes (19 × 13), deterministic from
+- [x] `lib/identity/builderClass.ts` — exactly 247 classes (19 × 13), deterministic from
       `name + handle`, `reroll(seed)` advances. Tests: 247 unique, stable across runs, no bad pairs.
-- [ ] `lib/identity/builderId.ts` — `HHG-2026-XXXX`, four base36 chars, stable hash
-- [ ] `lib/render/artboards/builderId.ts` — `docs/03` §2 exactly
-- [ ] Form — Name, Stack/Role, X handle (optional), class chip with reroll, 120 ms debounced re-render
-- [ ] Format B renders with placeholders the instant a photo lands, **before any field is filled**
-- [ ] `lib/render/artboards/crew.ts` — `docs/03` §3
-- [ ] Multi-slot upload — add / remove / reorder, 2–4 members
+- [x] `lib/identity/builderId.ts` — `HHG-2026-XXXX`, four base36 chars, stable hash
+- [x] `lib/render/artboards/builderId.ts` — `docs/03` §2 exactly
+- [x] Form — Name, Stack/Role, X handle (optional), class chip with reroll, 120 ms debounced re-render
+- [x] Format B renders with placeholders the instant a photo lands, **before any field is filled**
+- [x] `lib/render/artboards/crew.ts` — `docs/03` §3
+- [x] Multi-slot upload — add / remove / reorder, 2–4 members
 
 **Exit criterion.** The text-stress case renders clean: name `Bartholomew Vengeance Chatterjee-Rao`,
 role `Distributed Systems · Rust · Zero-Knowledge Proofs`. Nothing overflows on any of the three
 artboards.
+
+**Verified.** Typed the exact text-stress name/role into the live Builder ID form (not just a
+synthetic /lab spec) — name ellipsises cleanly at "Bartholomew Vengeance…", role wraps to 2 lines,
+nothing overflows. Same case exercised on the Crew Card (team name + first member name) in /lab.
+This is what surfaced the `fitText` silent-truncation bug fixed this phase — see the P3 note above.
+All three artboards, all six P2 fixtures, both text-stress cases, and vocabulary/hash unit tests
+(53 new tests across identity + render) pass. `pnpm build` first-load JS for `/` is 128 KB gzip,
+still comfortably under the 180 KB budget.
 
 ---
 

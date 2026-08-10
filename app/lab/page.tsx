@@ -6,13 +6,18 @@
  *
  * Runs the real pipeline (decodeImage -> autoframe -> render), not a hand-picked focal point —
  * this grid *is* the P2 exit-criterion evidence (docs/05): all six docs/03 §5 fixtures framing
- * acceptably with zero manual input.
+ * acceptably with zero manual input. P3 adds Formats B and C plus the text-stress case docs/03 §5
+ * calls for: nothing may overflow on any of the three artboards.
  */
 import { notFound } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { render, type CardSpec } from '@/lib/render'
+import { render, type CardSpec, type CrewMember } from '@/lib/render'
+import { ARTBOARD } from '@/lib/render/tokens'
+import type { Focal } from '@/lib/render/primitives'
 import { decodeImage } from '@/lib/image/decode'
 import { autoframe, warmAutoframe } from '@/lib/image/autoframe'
+import { builderClass } from '@/lib/identity/builderClass'
+import { builderId, crewId } from '@/lib/identity/builderId'
 
 if (process.env.NODE_ENV === 'production') {
   notFound()
@@ -27,93 +32,141 @@ const FIXTURES = [
   'heic-sample.heic',
 ] as const
 
-const FORMATS: CardSpec['format'][] = ['pfp']
+const TEXT_STRESS_NAME = 'Bartholomew Vengeance Chatterjee-Rao'
+const TEXT_STRESS_ROLE = 'Distributed Systems · Rust · Zero-Knowledge Proofs'
+const TEXT_STRESS_TEAM = 'The Extraordinarily Long-Winded Nether Navigator Collective'
 
-interface Cell {
-  format: CardSpec['format']
-  fixture: string
-  dataUrl: string | null
-  error: string | null
-  focal: { x: number; y: number } | null
+interface Photo {
+  bitmap: ImageBitmap
+  focal: Focal
 }
 
-function cellKey(format: string, fixture: string) {
-  return `${format}::${fixture}`
+interface Cell {
+  key: string
+  format: CardSpec['format']
+  label: string
+  dataUrl: string | null
+  error: string | null
+}
+
+async function loadPhoto(fixture: string): Promise<Photo> {
+  const res = await fetch(`/fixtures/${fixture}`)
+  const blob = await res.blob()
+  const bitmap = await decodeImage(blob)
+  const focal = await autoframe(bitmap)
+  return { bitmap, focal }
 }
 
 export default function LabPage() {
-  const [cells, setCells] = useState<Map<string, Cell>>(() => {
-    const initial = new Map<string, Cell>()
-    for (const format of FORMATS) {
-      for (const fixture of FIXTURES) {
-        initial.set(cellKey(format, fixture), { format, fixture, dataUrl: null, error: null, focal: null })
-      }
-    }
-    return initial
-  })
+  const [cells, setCells] = useState<Cell[]>([])
   const [showMask, setShowMask] = useState(true)
 
   useEffect(() => {
     let cancelled = false
 
     async function run() {
-      // In the real app, warmAutoframe() fires the moment the drop zone mounts — often seconds
-      // before a photo lands, so the model is warm well before autoframe() ever races its 800ms
-      // timeout. Awaiting it here puts every fixture on that same steady-state footing instead of
-      // making the first one or two pay a cold CDN+WASM fetch inside their own timeout budget.
-      await warmAutoframe()
+      await warmAutoframe() // see docs/05 P2 notes — puts every fixture on the same warm footing
 
+      const photos = new Map<string, Photo>()
       for (const fixture of FIXTURES) {
-        let bitmap: ImageBitmap
-        let focal: { x: number; y: number }
         try {
-          const res = await fetch(`/fixtures/${fixture}`)
-          const blob = await res.blob()
-          bitmap = await decodeImage(blob) // the real pipeline: HEIC sniff, orientation, 2048px cap
-          focal = await autoframe(bitmap) // the real face-or-fallback pipeline, not a hand-picked point
+          photos.set(fixture, await loadPhoto(fixture))
         } catch (err) {
           if (cancelled) return
-          for (const format of FORMATS) {
-            setCells((prev) => {
-              const next = new Map(prev)
-              next.set(cellKey(format, fixture), {
-                format,
-                fixture,
-                dataUrl: null,
-                error: `decode/autoframe failed: ${String(err)}`,
-                focal: null,
-              })
-              return next
-            })
-          }
-          continue
+          setCells((prev) => [
+            ...prev,
+            { key: `pfp::${fixture}`, format: 'pfp', label: fixture, dataUrl: null, error: String(err) },
+          ])
         }
+      }
+      if (cancelled) return
 
-        for (const format of FORMATS) {
-          try {
-            const spec = { format, photo: bitmap, focal } as CardSpec
-            const { dataUrl } = await render(spec)
-            if (cancelled) return
-            setCells((prev) => {
-              const next = new Map(prev)
-              next.set(cellKey(format, fixture), { format, fixture, dataUrl, error: null, focal })
-              return next
-            })
-          } catch (err) {
-            if (cancelled) return
-            setCells((prev) => {
-              const next = new Map(prev)
-              next.set(cellKey(format, fixture), {
-                format,
-                fixture,
-                dataUrl: null,
-                error: String(err),
-                focal,
-              })
-              return next
-            })
-          }
+      async function addCell(key: string, format: CardSpec['format'], label: string, spec: CardSpec) {
+        try {
+          const { dataUrl } = await render(spec)
+          if (cancelled) return
+          setCells((prev) => [...prev, { key, format, label, dataUrl, error: null }])
+        } catch (err) {
+          if (cancelled) return
+          setCells((prev) => [...prev, { key, format, label, dataUrl: null, error: String(err) }])
         }
+      }
+
+      // Format A + B against every fixture
+      for (const fixture of FIXTURES) {
+        const photo = photos.get(fixture)
+        if (!photo) continue
+
+        await addCell(`pfp::${fixture}`, 'pfp', fixture, {
+          format: 'pfp',
+          photo: photo.bitmap,
+          focal: photo.focal,
+        })
+
+        const name = 'Arunish Kumar'
+        const handle = 'arunishrajput'
+        await addCell(`id::${fixture}`, 'id', fixture, {
+          format: 'id',
+          photo: photo.bitmap,
+          focal: photo.focal,
+          name,
+          role: 'Full-stack · Embedded',
+          handle,
+          builderClass: builderClass(name, handle).label,
+          builderId: builderId(name, handle),
+        })
+      }
+
+      // Format B text-stress case — docs/03 §5
+      const stressPhoto = photos.get('portrait-tight.jpg')
+      if (stressPhoto) {
+        await addCell('id::text-stress', 'id', 'TEXT STRESS', {
+          format: 'id',
+          photo: stressPhoto.bitmap,
+          focal: stressPhoto.focal,
+          name: TEXT_STRESS_NAME,
+          role: TEXT_STRESS_ROLE,
+          handle: 'a-very-long-handle-for-testing',
+          builderClass: builderClass(TEXT_STRESS_NAME, '@stress').label,
+          builderId: builderId(TEXT_STRESS_NAME, '@stress'),
+        })
+      }
+
+      // Format C — n=2,3,4, reusing the decoded fixtures as crew members
+      const order = FIXTURES.filter((f) => photos.has(f))
+      function membersFor(fixtures: string[]): CrewMember[] {
+        return fixtures.map((f, i) => {
+          const photo = photos.get(f)!
+          return { photo: photo.bitmap, focal: photo.focal, name: `Member ${i + 1}` }
+        })
+      }
+
+      for (const n of [2, 3, 4]) {
+        const fixtures = order.slice(0, n)
+        if (fixtures.length < n) continue
+        const teamName = 'Nether Navigator'
+        const memberNames = fixtures.map((_, i) => `Member ${i + 1}`)
+        await addCell(`crew::n${n}`, 'crew', `crew n=${n}`, {
+          format: 'crew',
+          teamName,
+          crewClass: builderClass(teamName, `crew-${n}`).label,
+          crewId: crewId(teamName, memberNames),
+          members: membersFor(fixtures),
+        })
+      }
+
+      // Format C text-stress case
+      const stressFixtures = order.slice(0, 4)
+      if (stressFixtures.length === 4) {
+        const members = membersFor(stressFixtures)
+        members[0] = { ...members[0], name: TEXT_STRESS_NAME }
+        await addCell('crew::text-stress', 'crew', 'crew TEXT STRESS', {
+          format: 'crew',
+          teamName: TEXT_STRESS_TEAM,
+          crewClass: builderClass(TEXT_STRESS_TEAM, 'stress').label,
+          crewId: crewId(TEXT_STRESS_TEAM, members.map((m) => m.name)),
+          members,
+        })
       }
     }
 
@@ -127,38 +180,36 @@ export default function LabPage() {
     <div className="min-h-screen bg-neutral-900 p-6 font-mono text-sm text-neutral-100">
       <h1 className="text-lg font-bold">/lab — render grid</h1>
       <label className="mt-2 flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={showMask}
-          onChange={(e) => setShowMask(e.target.checked)}
-        />
-        overlay r=512 X profile-picture mask
+        <input type="checkbox" checked={showMask} onChange={(e) => setShowMask(e.target.checked)} />
+        overlay r=512 X profile-picture mask (Format A only)
       </label>
 
-      <div className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-6">
-        {Array.from(cells.values()).map((cell) => (
-          <div key={cellKey(cell.format, cell.fixture)} className="rounded border border-neutral-700 p-3">
-            <p className="mb-2 text-xs text-neutral-400">
-              {cell.format} · {cell.fixture}
-              {cell.focal && ` · focal (${cell.focal.x.toFixed(2)}, ${cell.focal.y.toFixed(2)})`}
-            </p>
-            <div className="relative aspect-square w-full max-w-[280px] bg-neutral-800">
-              {cell.dataUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- this is the render output itself, not an optimizable asset
-                <img src={cell.dataUrl} alt={`${cell.format} ${cell.fixture}`} className="h-full w-full" />
-              )}
-              {cell.error && <p className="p-2 text-red-400">{cell.error}</p>}
-              {showMask && cell.dataUrl && (
-                <svg
-                  viewBox="0 0 1024 1024"
-                  className="pointer-events-none absolute inset-0 h-full w-full"
-                >
-                  <circle cx={512} cy={512} r={512} fill="none" stroke="red" strokeWidth={6} />
-                </svg>
-              )}
+      <div className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
+        {cells.map((cell) => {
+          const { w, h } = ARTBOARD[cell.format]
+          return (
+            <div key={cell.key} className="rounded border border-neutral-700 p-3">
+              <p className="mb-2 text-xs text-neutral-400">
+                {cell.format} · {cell.label}
+              </p>
+              <div
+                className="relative w-full max-w-[320px] bg-neutral-800"
+                style={{ aspectRatio: `${w} / ${h}` }}
+              >
+                {cell.dataUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- this is the render output itself, not an optimizable asset
+                  <img src={cell.dataUrl} alt={`${cell.format} ${cell.label}`} className="h-full w-full" />
+                )}
+                {cell.error && <p className="p-2 text-red-400">{cell.error}</p>}
+                {showMask && cell.format === 'pfp' && cell.dataUrl && (
+                  <svg viewBox="0 0 1024 1024" className="pointer-events-none absolute inset-0 h-full w-full">
+                    <circle cx={512} cy={512} r={512} fill="none" stroke="red" strokeWidth={6} />
+                  </svg>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
