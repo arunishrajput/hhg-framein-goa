@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
+    "@vercel/blob": "^2.7.0",
     "heic-to": "^1.5.2",
+    "nanoid": "^6.0.1",
     "next": "15.5.23",
     "react": "19.1.0",
     "react-dom": "19.1.0"
