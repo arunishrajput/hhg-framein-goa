@@ -1,0 +1,14 @@
+/* GENERATED FILE — do not edit by hand.
+   Source: lib/render/tokens.ts COLOR. Change a colour there, then `pnpm gen:tokens`. */
+:root {
+  --hhg-cream: #FFFBEA;
+  --hhg-green: #2E673E;
+  --hhg-green-deep: #224D2E;
+  --hhg-pink: #EA3380;
+  --hhg-yellow: #F9E24C;
+  --hhg-ink: #33322F;
+  --hhg-ink-soft: #4D4B46;
+  --hhg-rule: #CCC9BB;
+  --hhg-cream-2: #FEFAE9;
+  --hhg-green-mid: #4D7D58;
+}
