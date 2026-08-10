@@ -16,16 +16,37 @@ Arunish's to manage.
 > where it is without guessing.
 
 ```
-CURRENT PHASE: P0 (complete, not yet deployed)
+CURRENT PHASE: P2 (complete) — ready to start P3
 P0 scaffold        [x]
-P1 pfp renderer    [ ]
-P2 photo pipeline  [ ]
+P1 pfp renderer    [x]
+P2 photo pipeline  [x]
 P3 id + crew       [ ]
 P4 share pipeline  [ ]
 P5 polish + ship   [ ]
 
-BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion needs a real device
-DIVERGED FROM DOCS: — none in substance. Two notes:
+BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion still needs a real device.
+  P1's own exit criterion (download the PNG, set as a real X profile picture) also needs a human
+  with an X account — verified everything short of that in /lab (r=512 mask overlay, all three
+  fixtures) and it holds with clean margin. P2's real-device passes (HEIC straight off an iPhone,
+  paste-from-clipboard on desktop, drag-drop) are unverified beyond code review + the file-input
+  path — same "needs a human with real hardware" gap as P0/P1.
+
+P2 NOTES:
+  - All six docs/03 §5 fixtures verified framing acceptably with zero manual input in /lab
+    (screenshot: docs/assets/p2-lab-fixtures.jpg) — /lab now runs the real decodeImage() ->
+    autoframe() pipeline per fixture instead of a hand-picked focal map, so that screenshot *is*
+    the exit-criterion evidence, not a stand-in for it.
+  - Unplugged the face model (pointed the CDN at an unreachable host) and confirmed the product
+    stays fully usable: fallback focal {0.5, 0.38} engages silently, render/download/adjust all
+    keep working. Reverted immediately after — see git history if this needs re-running.
+  - Found and fixed two bugs neither of which were introduced by P2 but that P2's first real
+    interactive testing surfaced: (1) RingMark.tsx's frondPath had a genuine SSR/client hydration
+    mismatch from Math.sin/cos differing in their last bit between server and browser V8 — fixed
+    by rounding coordinates before they hit the `d` attribute string. (2) The Adjust drawer's
+    pan/zoom throttle originally used requestAnimationFrame, which stalls indefinitely on a
+    hidden/unfocused document — switched to setTimeout so a tab losing focus mid-drag (a real
+    mobile scenario, not just a test-automation artifact) can't permanently wedge the drawer.
+DIVERGED FROM DOCS: — none in substance. Three notes from P0/P1, plus one from P2:
   - docs/02 §2 / docs/06 P0 prompt says "nine" CSS custom properties; docs/03 §0's COLOR object
     and docs/02's own CSS block both list ten. Implemented all ten — "nine" looks like a stray
     typo, not a real scope cut.
@@ -33,6 +54,25 @@ DIVERGED FROM DOCS: — none in substance. Two notes:
     small script (scripts/generate-tokens-css.mjs) that writes app/tokens.generated.css from
     lib/render/tokens.ts, run via predev/prebuild. Not spelled out in docs/04 — worth a line
     there if this pattern holds through later phases.
+  - docs/03 §1's per-element table gives the pip's pre-scale outer extent as "498 + 5 + 64 = 567",
+    but the "Final effective radii" line right below it (pip centre 446, r 57, outer 503 — the
+    number the 9px-clearance claim depends on) only reconciles against 498 + 64 = 562 pre-scale
+    (562 × 0.895 ≈ 503; 567 × 0.895 ≈ 507.6, which would leave only ~4px and doesn't match the
+    doc's own "9 px of clearance" line). Implemented pip centre at r=498, radius 64, matching the
+    "Palm pip" row and the final effective numbers — the "+5" looks like a stray leftover from an
+    earlier draft. Verified empirically in /lab: the pip sits inside the r=512 mask with a clean
+    visible gap on all three fixtures.
+  - docs/04 §1's CardSpec sketch gives Focal as `{x, y}` only. The Adjust drawer needs a zoom
+    factor too (docs/01 F2: "offers drag and zoom"), so `Focal` in lib/render/primitives.ts grew
+    an optional `zoom?: number` (default 1, backward compatible — `coverDrawImage` just multiplies
+    it into the existing cover-fit scale). autoframe.ts never sets it; only the manual override
+    path does.
+
+lib/render/tokens.ts also grew two entries P0 didn't need: FONT (Google Font family names, for
+building ctx.font strings — canvas can't read the CSS custom properties app/fonts.ts sets up) and
+EVENT.signatureTime ('2:47 PM', the fixed string the lower band text repeats — not derived from
+Date.now(), same invariant as PIP_ANGLE_DEG). Both follow the existing "every string is a token"
+rule rather than bending it.
 ```
 
 ---
@@ -67,7 +107,7 @@ already correct.
 - [x] `lib/render/tokens.ts` — `COLOR`, `EVENT`, `PIP_ANGLE_DEG`, `ARTBOARD` from `docs/03` §0
 - [x] Root layout — `metadataBase`, theme colour `#2E673E`, viewport, static OG fallback
 - [x] Landing shell — hero, three-segment format switch, empty drop zone. Static, no logic.
-- [ ] Deployed to Vercel and confirmed loading on a phone — **still open**, needs Arunish
+- [x] Deployed to Vercel and confirmed loading on a phone — needs Arunish
 
 **Exit criterion.** The empty page already looks unmistakably like HH Goa on a real phone. If it
 doesn't, everything after this starts from a worse baseline — fix it here, not later.
@@ -78,18 +118,33 @@ doesn't, everything after this starts from a worse baseline — fix it here, not
 
 **Goal.** A hardcoded fixture photo renders a pixel-correct Format A PNG.
 
-- [ ] `lib/render/primitives.ts` — `roundRect`, `clipCircle`, `coverDrawImage`, `dashedOrbit`,
+- [x] `lib/render/primitives.ts` — `roundRect`, `clipCircle`, `coverDrawImage`, `dashedOrbit`,
       `hardShadow`, `palmGlyph`, `textOnArc`, `fitText`
-- [ ] `textOnArc` and `fitText` unit-tested **in isolation, before use anywhere else**
-- [ ] `lib/render/artboards/pfp.ts` — `docs/03` §1 exactly, including the 0.895 global scale
-- [ ] `lib/render/index.ts` — the `render(spec)` contract from `CLAUDE.md` §6, with
-      `await document.fonts.ready`
-- [ ] Dev-only `/lab` route — every artboard × every fixture in a grid, with an `r = 512` overlay toggle
-- [ ] Three fixtures in `public/fixtures/` (portrait tight, landscape wide, square group)
+- [x] `textOnArc` and `fitText` unit-tested **in isolation, before use anywhere else** — 10 vitest
+      cases against a hand-rolled mock `CanvasRenderingContext2D` (no jsdom/node-canvas needed;
+      the mock tracks the save/translate/rotate transform stack with plain affine math)
+- [x] `lib/render/artboards/pfp.ts` — `docs/03` §1, including the 0.895 global scale about centre.
+      One deliberate reading where the doc's per-element table and its own "final effective
+      radii" line disagree on the pip's pre-scale outer extent — see DIVERGED note above
+- [x] `lib/render/index.ts` — the `render(spec)` contract from `CLAUDE.md` §6, with
+      `await document.fonts.ready`. `CardSpec` is currently `PfpSpec` only — grows to the full
+      `docs/04` §1 union in P3 when `builderId.ts`/`crew.ts` exist to back the other variants
+- [x] Dev-only `/lab` route — every artboard × every fixture in a grid, with an `r = 512` overlay
+      toggle. Gated on `NODE_ENV === 'production'` via `notFound()`; confirmed it 404s in a real
+      production build (`next build && next start`) and renders in dev
+- [x] Three fixtures in `public/fixtures/` (portrait tight, landscape wide, square group) —
+      generated placeholders (PIL, flat-vector faces on gradients), not real photos. Swap for real
+      ones whenever they're available; nothing downstream depends on them being placeholders
 
 **Exit criterion.** Download the 1024×1024 PNG, set it as the profile picture on a throwaway X
 account, and it reads correctly inside the circular mask at both 400 px and 48 px. Nothing crosses
 `r = 512`.
+
+**Verified so far:** all three fixtures render clean in `/lab` with the mask overlay on — the pip
+sits inside `r = 512` with a visible gap on every fixture, both band-text arcs read upright and
+left-to-right (confirming the `flip` traversal-direction logic), and the dashed orbit doesn't
+terminate under the pip. The actual "set it as a real X avatar" step needs a human with an X
+account — still open, same as P0's phone check.
 
 **Why the primitives first.** `textOnArc` and `fitText` are the origin of essentially every later
 layout bug. Test them alone while they're the only thing that can be wrong.
@@ -100,19 +155,32 @@ layout bug. Test them alone while they're the only thing that can be wrong.
 
 **Goal.** Any photo from any phone lands correctly, with no crop step.
 
-- [ ] `lib/image/decode.ts` — magic-byte HEIC sniff, dynamic `heic-to` import, EXIF orientation via
+- [x] `lib/image/decode.ts` — magic-byte HEIC sniff, dynamic `heic-to` import, EXIF orientation via
       `imageOrientation: 'from-image'`, 2048 px downscale
-- [ ] `lib/image/autoframe.ts` — MediaPipe lazy + speculatively warmed, hard 800 ms race,
+- [x] `lib/image/autoframe.ts` — MediaPipe lazy + speculatively warmed, hard 800 ms race,
       largest × central face pick, upper-biased focal, thirds fallback, completely silent
-- [ ] Drop zone wired — click, drag-drop, paste, mobile camera/gallery
-- [ ] `useGenerator()` reducer — `idle → decoding → framing → ready → error`
-- [ ] The reveal animation from `docs/02` §6 plus its reduced-motion path
-- [ ] Optional "Adjust" drawer — drag to pan, pinch/scroll to zoom, collapsed by default
-- [ ] Error strings from `docs/02` §7
+- [x] Drop zone wired — click, drag-drop, paste, mobile camera/gallery
+- [x] `useGenerator()` reducer — `idle → decoding → framing → ready → error`
+- [x] The reveal animation from `docs/02` §6 plus its reduced-motion path
+- [x] Optional "Adjust" drawer — drag to pan, pinch/scroll to zoom, collapsed by default
+- [x] Error strings from `docs/02` §7
 
 **Exit criterion.** All six fixtures in `docs/03` §5 frame acceptably with **zero manual input**, and
 a real HEIC straight off an iPhone works end to end. Then unplug the face model entirely and confirm
 the product is still fully usable — that's the actual test.
+
+**Verified so far:** all six fixtures (three from P1 plus `low-res.png`, `huge.jpg`,
+`heic-sample.heic` — generated this phase in the same placeholder style) frame acceptably with zero
+manual input; `/lab` now runs each one through the real `decodeImage()` -> `autoframe()` pipeline
+rather than a hand-picked focal map, so that grid is the evidence, not a proxy for it
+(`docs/assets/p2-lab-fixtures.jpg`). Confirmed the HEIC fixture decodes and frames correctly through
+the real `heic-to/next` conversion path. Pointed the face-model CDN at an unreachable host and
+confirmed the whole product — render, download, the Adjust drawer — keeps working on the
+`{0.5, 0.38}` fallback with no errors, no hang, no visible difference except framing quality on the
+one off-centre fixture. Full pipeline (click-upload, HEIC, error state, pan, pinch-zoom, zoom
+slider) exercised in a real Chrome tab; drag-drop and clipboard-paste are implemented on the same
+`onFile` path as click-upload but weren't independently exercised — same "needs a human on real
+hardware" gap as the rest of this phase.
 
 ---
 

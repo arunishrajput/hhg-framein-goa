@@ -19,15 +19,22 @@ const pipY = CENTER - ORBIT_R * Math.cos(pipAngleRad)
 
 const FROND_ANGLES = [-55, -27, 0, 27, 55]
 
+// Math.sin/cos can differ in their last bit between the server's V8 and the browser's, which
+// otherwise leaks into the `d` attribute string and trips a hydration mismatch. Rounding collapses
+// that sub-pixel noise before it ever reaches text.
+function round(v: number): number {
+  return Math.round(v * 10000) / 10000
+}
+
 function frondPath(angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180
   const tipR = PIP_R * 0.62
   const baseX = 0
-  const baseY = PIP_R * 0.38
-  const tipX = tipR * Math.sin(rad)
-  const tipY = -tipR * Math.cos(rad) + PIP_R * 0.05
-  const ctrlX = tipX * 0.55
-  const ctrlY = (baseY + tipY) * 0.4
+  const baseY = round(PIP_R * 0.38)
+  const tipX = round(tipR * Math.sin(rad))
+  const tipY = round(-tipR * Math.cos(rad) + PIP_R * 0.05)
+  const ctrlX = round(tipX * 0.55)
+  const ctrlY = round((baseY + tipY) * 0.4)
   return `M ${baseX} ${baseY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`
 }
 

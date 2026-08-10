@@ -1,5 +1,4 @@
-import { DropZone } from '@/components/DropZone'
-import { FormatSwitch } from '@/components/FormatSwitch'
+import { Generator } from '@/components/Generator'
 import { EVENT } from '@/lib/render/tokens'
 
 export default function Home() {
@@ -17,11 +16,7 @@ export default function Home() {
         </p>
       </header>
 
-      <div className="flex justify-center">
-        <FormatSwitch />
-      </div>
-
-      <DropZone />
+      <Generator />
 
       <footer className="flex flex-col items-center gap-2 pt-4 text-center">
         <p className="font-mono text-xs tracking-[0.14em] text-hhg-ink-soft uppercase">

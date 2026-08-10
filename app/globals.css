@@ -27,11 +27,87 @@ body {
   color: var(--hhg-ink);
 }
 
+/* Motion primitives — docs/02 §6. Pure CSS constants, not brand colour, so unlike COLOR these
+   are hand-kept rather than generated from lib/render/tokens.ts (docs/10 D5 is about colour). */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 240ms;
+  --dur-reveal: 520ms;
+}
+
+/*
+ * The reveal — photo lands, card assembles (docs/02 §6). The ring is already on screen before
+ * the photo exists (drawn by RingMark in the empty drop zone), so all this animates is the real
+ * rendered PNG swapping in: a scale+opacity pop plus a centre-out clip-path reveal standing in
+ * for "the orbit draws itself, then the pip pops" without drawing a second, DOM-only copy of the
+ * ring — the rendered canvas stays the only source of pixels (CLAUDE.md §5).
+ */
+@keyframes hhg-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    clip-path: circle(0% at 50% 50%);
+  }
+  46% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    clip-path: circle(75% at 50% 50%); /* > the 70.7% needed to clear a square's corners */
+  }
+}
+
+@keyframes hhg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hhg-fade-only {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.reveal {
+  animation: hhg-reveal 400ms var(--ease-out) both;
+}
+
+/* The chrome below the image (download, adjust, etc) — fades up 8px, staggered via --stagger-index. */
+.reveal-item {
+  animation: hhg-fade-up 160ms var(--ease-out) both;
+  animation-delay: calc(360ms + var(--stagger-index, 0) * 40ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
+  }
+
+  /* The one orchestrated reveal is the deliberate exception to the blanket collapse above:
+     docs/02 §6 calls for a single 100ms opacity fade here, never a hard cut. Both rules below
+     have to fight the !important pair above on equal terms, which is why they're !important too
+     — .reveal / .reveal-item's higher selector specificity is what lets them win that fight. */
+  .reveal,
+  .reveal-item {
+    animation-name: hhg-fade-only !important;
+    animation-duration: 100ms !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+    clip-path: none !important;
   }
 }
