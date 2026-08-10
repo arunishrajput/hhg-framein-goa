@@ -29,6 +29,14 @@ export const EVENT = {
   tag: '#FrameInGoa', // primary — every official source uses this
   tagAlt: '#FramedInGoa', // secondary — see CLAUDE.md §2. Both go in every caption, tag first.
   deva: 'गोवा',
+  signatureTime: '2:47 PM', // the clock the pip points to (docs/02 §1) — fixed, never Date.now()
+} as const
+
+/** Google Font family names, exactly as registered in app/fonts.ts — for building ctx.font strings. */
+export const FONT = {
+  display: 'Bodoni Moda',
+  mono: 'Space Mono',
+  deva: 'Noto Sans Devanagari',
 } as const
 
 export const TEAM = {

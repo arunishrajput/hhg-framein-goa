@@ -150,6 +150,30 @@ on without touching anything. Supporting four costs nothing and covers the edge.
 
 ---
 
+## D9 · PFP pip outer extent: 498 + 64, not 498 + 5 + 64
+
+**Was ambiguous:** `docs/03` §1's per-element table gives the pip's pre-scale outer extent as
+`498 + 5 + 64 = 567`. The "Final effective radii after the 0.895 scale" line two paragraphs below
+it states the pip lands at centre 446, radius 57 — which is `498 × 0.895` and `64 × 0.895`, i.e.
+derived from `498 + 64 = 562` pre-scale, not 567. `567 × 0.895 ≈ 507.6`, which would leave under
+5 px of clearance inside `r = 512`, not the "9 px of clearance" the same section claims.
+
+**Decided:** implemented as `498 + 64 = 562` pre-scale (pip centre at `r = 498`, matching the
+"Palm pip" row exactly; radius 64), because that's the reading that actually reconciles with the
+doc's own final numbers (446 / 57 / 503 / "9 px of clearance"). The `+ 5` looks like a leftover
+from an earlier draft — possibly a stroke half-width that got folded into a hand computation and
+never removed.
+
+**Verified empirically** in `/lab` with the `r = 512` mask overlay on all three fixtures: the pip
+sits inside the mask with a clean visible gap on every one, consistent with ~9 px of clearance and
+not the ~4 px the `567` reading would predict.
+
+**Not a geometry change** — `docs/03`'s numbers still need Arunish's sign-off per `CLAUDE.md` §9,
+and this doesn't touch any of them; it just picks the internally-consistent reading of two
+conflicting lines already in the doc. Flagging here rather than silently choosing.
+
+---
+
 ## Still open
 
 Nothing blocking. Two things to confirm rather than decide:
