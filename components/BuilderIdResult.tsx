@@ -90,7 +90,7 @@ export function BuilderIdResult({
               type="button"
               onClick={generator.download}
               style={{ '--stagger-index': 2 } as CSSProperties}
-              className="reveal-item rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[15px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
+              className="reveal-item rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[18px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
             >
               Download PNG
             </button>

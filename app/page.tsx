@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-4 py-12 sm:px-8">
       <header className="flex flex-col items-center gap-3 text-center">
-        <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-hhg-pink">
+        <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-hhg-green">
           {EVENT.name} · {EVENT.year}
         </p>
         <h1 className="font-display text-[44px] leading-[1.02] font-extrabold tracking-[-0.02em] text-hhg-green sm:text-[64px]">
@@ -16,7 +16,9 @@ export default function Home() {
         </p>
       </header>
 
-      <Generator />
+      <main>
+        <Generator />
+      </main>
 
       <footer className="flex flex-col items-center gap-2 pt-4 text-center">
         <p className="font-mono text-xs tracking-[0.14em] text-hhg-ink-soft uppercase">
