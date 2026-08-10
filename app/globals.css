@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import "./tokens.generated.css";
+
+/*
+ * Brand tokens are generated into tokens.generated.css from lib/render/tokens.ts COLOR —
+ * see scripts/generate-tokens-css.mjs and docs/10-DECISIONS.md D5. Do not hand-add a colour here.
+ */
+@theme {
+  --color-hhg-cream: var(--hhg-cream);
+  --color-hhg-cream-2: var(--hhg-cream-2);
+  --color-hhg-green: var(--hhg-green);
+  --color-hhg-green-deep: var(--hhg-green-deep);
+  --color-hhg-green-mid: var(--hhg-green-mid);
+  --color-hhg-pink: var(--hhg-pink);
+  --color-hhg-yellow: var(--hhg-yellow);
+  --color-hhg-ink: var(--hhg-ink);
+  --color-hhg-ink-soft: var(--hhg-ink-soft);
+  --color-hhg-rule: var(--hhg-rule);
+
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-deva: var(--font-deva);
+}
+
+body {
+  background: var(--hhg-cream);
+  color: var(--hhg-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
