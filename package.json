@@ -7,11 +7,12 @@
     "predev": "pnpm gen:tokens",
     "prebuild": "pnpm gen:tokens",
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "analyze": "next build && node --no-warnings scripts/analyze-bundle.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
