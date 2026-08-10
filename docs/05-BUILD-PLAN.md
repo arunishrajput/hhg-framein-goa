@@ -16,12 +16,12 @@ Arunish's to manage.
 > where it is without guessing.
 
 ```
-CURRENT PHASE: P3 (complete) — ready to start P4
+CURRENT PHASE: P4 (complete) — ready to start P5
 P0 scaffold        [x]
 P1 pfp renderer    [x]
 P2 photo pipeline  [x]
 P3 id + crew       [x]
-P4 share pipeline  [ ]
+P4 share pipeline  [x]
 P5 polish + ship   [ ]
 
 BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion still needs a real device.
@@ -30,7 +30,61 @@ BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion still ne
   fixtures) and it holds with clean margin. P2's and P3's real-device passes (HEIC straight off an
   iPhone, paste-from-clipboard, drag-drop, real touch pinch-zoom) are unverified beyond code
   review + the file-input/synthetic-pointer-event path — same "needs a human with real hardware"
-  gap as P0/P1, now carried through every phase since.
+  gap as P0/P1, now carried through every phase since. P4's own exit criterion (a real test tweet
+  from a real iPhone, checked against X's Card Validator on the production URL) needs the same
+  thing plus a real `BLOB_READ_WRITE_TOKEN` and a live Vercel deployment — nothing in this repo can
+  clear that bar from a dev machine with no token.
+
+P4 NOTES:
+  - All three degrade paths named in the kickoff prompt were exercised live in a real Chrome tab
+    against the real dev server (not unit-tested in isolation): token unset (the actual dev
+    condition — no `.env.local` exists), the fetch to `/api/share` rejecting outright (simulated
+    network drop, distinct from a resolved error response), and a cancelled native share
+    (`navigator.share` stubbed to reject `AbortError`, since a real OS share sheet is a modal
+    automation can't safely drive — see the `canShare`/`share` stubbing notes inline in
+    `lib/share/useShare.ts`'s header comment for why the hook takes an in-memory `Blob` rather than
+    fetching a blob: URL). All three degraded exactly per `docs/10` D3: the first two downloaded
+    the PNG, opened the blank-tab popup synchronously, hit `/api/share`, got a rejection, and
+    surfaced the toast text verbatim ("Saved your PNG. Attach it to the post.") with a text-only
+    `x.com/intent/post` URL; the cancelled-share case did nothing further — no download, no popup,
+    no toast — matching "native handles its own UX" in `docs/04` §4c.
+  - Also verified the golden path with a mocked `/api/share` response: the popup's location lands
+    on `x.com/intent/post?text=...&url=<origin>/s/<id>`, confirming `xIntentUrl` and the
+    `window.location.origin` composition are wired correctly end to end, for all three formats
+    (PFP, Builder ID with a typed name + generated class, Crew with the default team-name
+    placeholder) — captions matched `docs/08` §2 exactly in each case.
+  - `/s/[id]` was hit directly for a nonexistent id and rendered the "This card isn't here anymore"
+    fallback cleanly rather than throwing — expected, since `getCard()` returns `null` whenever
+    `BLOB_READ_WRITE_TOKEN` is unset (`lib/share/cardStore.ts`), which is the real state of this
+    dev machine. The actual OG-image contract (`summary_large_image`, absolute blob URL, declared
+    width/height, X's Card Validator) is unverified — it needs a real token, a real deploy, and is
+    called out in BLOCKED ON above.
+  - Card metadata has no KV dependency: `app/api/share/route.ts` writes a sibling
+    `meta/${id}.json` blob next to `cards/${id}.png`, and `lib/share/cardStore.ts` finds it via
+    `list({ prefix })` on the exact pathname rather than needing to know the store's hostname up
+    front — the hostname is only known after the first `put()` resolves, so a lookup keyed on a
+    full URL wouldn't work for a fresh server invocation.
+  - Rate limiting (`lib/share/rateLimit.ts`) is an in-memory sliding window, deliberately not
+    backed by KV/Redis — best-effort only, resets on cold start, doesn't coordinate across
+    serverless instances. Fine here: there's no auth and nothing to protect, it just keeps one warm
+    instance from being hammered, matching the "no auth" non-negotiable in spirit (`docs/04` §4a).
+  - `useShare()`'s native-vs-link branch decision is entirely synchronous (`canShareFiles(file)` on
+    an already-in-memory `Blob`), which is what lets the link-path popup open with
+    `window.open('about:blank', '_blank')` still inside the click handler's call stack, before any
+    `await` — the workaround CLAUDE.md's P4 prompt calls "the single most likely bug in the whole
+    project." Confirmed as a real risk during testing, just self-inflicted: a diagnostic script
+    that called `.click()` and then polled with `setTimeout` in the same script hung a CDP call for
+    45s, because `window.open` backgrounded the tab and Chrome throttles background-tab timers —
+    switching the poll to a `MutationObserver` (not timer-based) fixed the diagnostic; nothing in
+    the app itself was at fault.
+  - `useGenerator`/`useBuilderIdGenerator`/`useCrewGenerator` each gained a `blob` (the latter two
+    didn't retain one before) and a memoized `caption` built from the exact same display-name
+    fallback the render spec already uses (`PLACEHOLDER_NAME`/`PLACEHOLDER_TEAM`), so the caption
+    can never name someone differently than the card in the same PNG does.
+  - New shared presentational components, `ShareButton` and `Toast`, implement `docs/02` §5's
+    Secondary button and Toast specs verbatim (cream/green-border/green-text; green/cream,
+    bottom-right on desktop, bottom-centre on mobile, 4s auto-dismiss) and the button copy is
+    exactly `docs/02` §7's voice-table mapping, "Share" -> "Post on X".
 
 P3 NOTES:
   - Formats B and C both verified end-to-end in a real Chrome tab, not just /lab
@@ -260,17 +314,17 @@ still comfortably under the 180 KB budget.
 
 This is the differentiator over the field. Give it the most attention and the most testing.
 
-- [ ] `app/api/share/route.ts` — Node runtime, PNG magic-byte validation, 6 MB cap, Vercel Blob,
+- [x] `app/api/share/route.ts` — Node runtime, PNG magic-byte validation, 6 MB cap, Vercel Blob,
       `nanoid(10)`, IP rate limit, no auth
-- [ ] `app/s/[id]/page.tsx` + `generateMetadata` — absolute OG url, `summary_large_image`,
+- [x] `app/s/[id]/page.tsx` + `generateMetadata` — absolute OG url, `summary_large_image`,
       width/height declared, fresh id per share
-- [ ] `/s/[id]` page body — graphic large, name, one "Make yours" CTA
-- [ ] `lib/share/webShare.ts` — `canShare({files})` probe, native share with the file attached
-- [ ] `lib/share/xIntent.ts` — caption builder from `docs/08`, `x.com/intent/post`
-- [ ] **The popup workaround** — blank tab opened synchronously in the click handler, `location` set
+- [x] `/s/[id]` page body — graphic large, name, one "Make yours" CTA
+- [x] `lib/share/webShare.ts` — `canShare({files})` probe, native share with the file attached
+- [x] `lib/share/xIntent.ts` — caption builder from `docs/08`, `x.com/intent/post`
+- [x] **The popup workaround** — blank tab opened synchronously in the click handler, `location` set
       after upload resolves
-- [ ] Download path verified on iOS Safari specifically
-- [ ] Every fallback exercised deliberately: token unset, network killed mid-upload, share sheet dismissed
+- [ ] Download path verified on iOS Safari specifically — needs a real device, see BLOCKED ON
+- [x] Every fallback exercised deliberately: token unset, network killed mid-upload, share sheet dismissed
 
 **Exit criterion.** A real test tweet posted from a real iPhone *and* from desktop, and X's Card
 Validator shows the actual generated graphic against the **production** URL — not a preview deploy,
