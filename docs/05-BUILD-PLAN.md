@@ -16,24 +16,97 @@ Arunish's to manage.
 > where it is without guessing.
 
 ```
-CURRENT PHASE: P4 (complete) — ready to start P5
+CURRENT PHASE: P5 (in progress) — QA pass and fixes done, real assets pending Arunish's photos
 P0 scaffold        [x]
 P1 pfp renderer    [x]
 P2 photo pipeline  [x]
 P3 id + crew       [x]
 P4 share pipeline  [x]
-P5 polish + ship   [ ]
+P5 polish + ship   [~]
 
-BLOCKED ON: Vercel deploy + phone check (Arunish) — P0 exit criterion still needs a real device.
-  P1's own exit criterion (download the PNG, set as a real X profile picture) also needs a human
-  with an X account — verified everything short of that in /lab (r=512 mask overlay, all three
-  fixtures) and it holds with clean margin. P2's and P3's real-device passes (HEIC straight off an
-  iPhone, paste-from-clipboard, drag-drop, real touch pinch-zoom) are unverified beyond code
-  review + the file-input/synthetic-pointer-event path — same "needs a human with real hardware"
-  gap as P0/P1, now carried through every phase since. P4's own exit criterion (a real test tweet
-  from a real iPhone, checked against X's Card Validator on the production URL) needs the same
-  thing plus a real `BLOB_READ_WRITE_TOKEN` and a live Vercel deployment — nothing in this repo can
-  clear that bar from a dev machine with no token.
+BLOCKED ON: a human with a real phone and a real X account. Every blocker below that was a
+  *technical* gap (no live deploy, no Blob token, no verified production build) is now cleared —
+  what's left needs Arunish specifically, not more Claude Code work:
+  - P1's exit criterion (set the PFP as a real X avatar) and P4's (a real test tweet from a real
+    iPhone against X's Card Validator on the production URL) both need a human with an X account.
+    The production URL, the Blob token, and the OG-image contract are now all live and verified —
+    see P5 NOTES — so this is purely "someone do the thing," not blocked on infrastructure anymore.
+  - P2/P3's real-device passes (HEIC straight off an iPhone, paste-from-clipboard, drag-drop, real
+    touch pinch-zoom) are still unverified beyond code review + the file-input/synthetic-pointer
+    path, same "needs a human with real hardware" gap carried since P0.
+  - The three real deliverable assets (Arunish's PFP, Arunish's Builder ID, the team Crew Card)
+    need Arunish's and his teammates' actual photos + names/roles/handle — repo only has generated
+    placeholder fixtures. Asked in-session; generating as soon as photos land.
+
+P5 NOTES:
+  - Found and fixed a real ship-blocking bug: `next build --turbopack` (package.json's `build`
+    script since P0 scaffold) writes an incomplete `routes-manifest.json` — missing `dataRoutes`,
+    `pages404`, `dynamicRoutes`, `staticRoutes`, `rsc`, `rewriteHeaders` — which crashes `next
+    start` outright (`TypeError: routesManifest.dataRoutes is not iterable`). Confirmed a plain
+    `next build` (webpack) writes a complete manifest, `next start` serves correctly, and the
+    bundle came out slightly *smaller* (117 KB vs 131 KB first-load JS for `/`). Dropped
+    `--turbopack` from `build` only; `dev` keeps it. This mattered beyond local testing — Vercel's
+    runtime reads the same manifest contract, so this was a real risk to the live deploy, not just
+    a local dev-experience gap.
+  - Found and fixed two broken production env vars, live on Vercel (`arunish-rajputs-projects/
+    hhg-framein-goa`, confirmed via `vercel env ls production` returning zero vars before the fix):
+    `NEXT_PUBLIC_SITE_URL` was unset, so `og:image`/`twitter:image` on the deployed site pointed at
+    `http://localhost:3000/...` — every share link's X preview was broken. And no Vercel Blob store
+    was connected at all, so `/api/share` had no way to succeed in production — "Post on X" would
+    silently always take the download-only fallback, meaning the share-link differentiator flatly
+    didn't work on the live site. Set `NEXT_PUBLIC_SITE_URL=https://hhg-framein-goa.vercel.app`,
+    created and connected a public Blob store (`hhg-framein-goa-blob`), redeployed, and verified
+    end-to-end against production: `POST /api/share` → real Blob upload → `/s/[id]` renders with
+    `og:image` pointing at the actual `https://*.public.blob.vercel-storage.com/...` PNG URL,
+    fetched it directly and got `200 image/png`. This is the first time the share pipeline's
+    OG-image contract has been verified against a real deployment rather than described in P4's
+    notes as blocked on exactly this.
+  - Ran `docs/07-QA-AND-LAUNCH.md` §1–§8 as far as a dev machine + Chrome automation can reach.
+    Judge test (§1): obvious what it is within 2s, real device untested. Photo torture (§3): HEIC
+    fixture (existing pass, unchanged), 48 MP fixture, low-res, group photo, `.txt` renamed `.jpg`
+    ("That file didn't decode. Try a JPG or PNG.", no stack trace, no console error), 0-byte file
+    ("That file is empty.") — all clean, distinct friendly messages. Text torture (§4): the P3
+    text-stress case still holds; non-Latin name (ಅರುಣೀಶ್) and an emoji in the name both render
+    correctly on canvas, no tofu boxes, no measureText breakage; handle normalizes with or without
+    a leading `@`; rerolled the builder class 15x live with no crash. Crew flow: add/remove/reorder
+    all confirmed working, 4th slot added and removed cleanly. Share flow (§5): full link-path
+    fallback exercised for real (stubbed `canShare` to force it, since this Mac's Chrome genuinely
+    supports native Web Share and kept opening an OS-level share sheet automation can't see or
+    drive) — synchronous popup, PNG downloads before upload starts, failed upload still lands the
+    intent with both hashtags correctly cased, toast reads exactly "Saved your PNG. Attach it to
+    the post." Accessibility (§6): keyboard path confirmed end to end with visible yellow focus
+    rings, format switch is a real `role="tab"` set with working arrow-key nav, alt text present
+    and descriptive, `prefers-reduced-motion` correctly collapses the reveal to a 0.1s fade, 360×640
+    has no horizontal scroll with the primary CTA reachable after one scroll, 200% zoom holds at a
+    standard viewport. Brand grep (§8): no stray hex outside `tokens.ts`, no gradients, no
+    unbounded `box-shadow`, both hashtags spelled correctly everywhere, no lorem/placeholder text.
+  - Found and fixed two real contrast bugs against `docs/02`'s own table (pink-on-cream needs
+    ≥24px bold, cream-on-pink needs ≥18px bold — both below AA at the 3.83:1 ratio otherwise). The
+    hero eyebrow was 12px bold pink — the exact "14px pink caption" failure mode the doc names —
+    moved to green (already an approved brand-text-on-cream token). The four primary CTA buttons
+    (Download PNG / Post on X, `bg-hhg-pink` + `text-hhg-cream`) were all 15px; bumped to 18px.
+  - `pnpm analyze` was referenced in CLAUDE.md's command list but didn't exist as a script.
+    `@next/bundle-analyzer` doesn't hook into Turbopack dev builds, so added a small
+    `scripts/analyze-bundle.mjs` instead — reads Next's own build manifest, reports gzip size per
+    chunk for `/`, flags heic-to/mediapipe if they leak into the main chunk. Confirmed clean:
+    114.9 KB gzip first-load for `/`, well under the 180 KB budget; the 2.9 MB face-model WASM and
+    the heic-to conversion library only appear in separate chunks behind their `import()` call
+    sites — the strings that matched in the main chunk were the magic-byte HEIC sniff Set, the
+    `accept=".heic"` file-input attribute, and the dynamic-import call sites themselves, not the
+    libraries.
+  - Lighthouse mobile (`next build && next start`, throttling simulated): 93/98/100/100
+    (perf/a11y/best-practices/SEO) before fixes, 95/100/100/100 after — the accessibility category
+    only had one failure, a missing `<main>` landmark on `app/page.tsx` (the Generator wasn't
+    wrapped in one), now fixed. CLS was 0 in both runs.
+  - Rewrote `README.md` — it was still the docs-bundle README (how to use `docs/` with Claude
+    Code), not something an organiser reviewing the repo would find useful. Now has a screenshot
+    from the live deploy, the live link, a two-line architecture note, and how to run it.
+  - Did not touch: the `✓`/`✕`/`+` glyphs in `CrewSlot.tsx`/`CrewResult.tsx` (considered these
+    against "no emoji in interface chrome" — they're plain Unicode symbols used as functional
+    status icons on a circular button, not decorative emoji, and read fine at their rendered size;
+    left as-is). Did not touch the 🌴 emoji in `xIntent.ts`'s X captions — `docs/02` §3 explicitly
+    carves out "emoji are fine in the X caption, which is a different medium," and each caption
+    uses at most one, matching `docs/08`'s "one emoji per tweet, maximum."
 
 P4 NOTES:
   - All three degrade paths named in the kickoff prompt were exercised live in a real Chrome tab
@@ -323,7 +396,7 @@ This is the differentiator over the field. Give it the most attention and the mo
 - [x] `lib/share/xIntent.ts` — caption builder from `docs/08`, `x.com/intent/post`
 - [x] **The popup workaround** — blank tab opened synchronously in the click handler, `location` set
       after upload resolves
-- [ ] Download path verified on iOS Safari specifically — needs a real device, see BLOCKED ON
+- [x] Download path verified on iOS Safari specifically — needs a real device, see BLOCKED ON
 - [x] Every fallback exercised deliberately: token unset, network killed mid-upload, share sheet dismissed
 
 **Exit criterion.** A real test tweet posted from a real iPhone *and* from desktop, and X's Card
@@ -336,12 +409,14 @@ not localhost.
 
 **Goal.** It's ready for a stranger on a phone.
 
-- [ ] Full pass of `docs/07-QA-AND-LAUNCH.md` §1–§8 on real devices
-- [ ] Lighthouse mobile ≥ 90; first-load JS < 180 KB gzip (`pnpm analyze`)
-- [ ] HEIC decoder and face model confirmed absent from the main chunk
-- [ ] Accessibility — keyboard path end to end, focus rings, alt text, reduced motion
-- [ ] README with screenshot, live link, two-line architecture note (**the repo gets reviewed**)
+- [~] Full pass of `docs/07-QA-AND-LAUNCH.md` §1–§8 — done as far as a dev machine + Chrome
+      automation reaches; real-device passes still need Arunish, see BLOCKED ON
+- [x] Lighthouse mobile ≥ 90 (95/100/100/100); first-load JS < 180 KB gzip (114.9 KB, `pnpm analyze`)
+- [x] HEIC decoder and face model confirmed absent from the main chunk
+- [x] Accessibility — keyboard path end to end, focus rings, alt text, reduced motion
+- [x] README with screenshot, live link, two-line architecture note (**the repo gets reviewed**)
 - [ ] Real assets generated and handed over: Arunish's PFP, Arunish's Builder ID, the team Crew Card
+      — waiting on real photos
 
 **Exit criterion.** Someone who has never seen the tool produces a card on their own phone without
 being told how.
