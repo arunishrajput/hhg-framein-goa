@@ -212,7 +212,10 @@ describing a perfect plan. When a decision is genuinely 50/50, build both and sh
 rather than writing paragraphs about it.
 
 **Commit discipline:** small commits, imperative subject, one concern each. Every commit must build.
-Push to `main` only after the gate in §3 passes.
+Commit proactively — after finishing a change, wrapping up a build-plan phase, or landing any piece
+of major work, commit it before moving on. Don't let work pile up uncommitted across a session; a
+long `git status` at the end of a session is a sign commits should have happened earlier. Push to
+`main` only after the gate in §3 passes.
 
 **Scope pressure is real.** Cut lines are triggered by *phase state*, not by the clock — the table in
 `docs/05` §Cut lines defines exactly when each becomes available. If a phase is dragging, say so early,
