@@ -10,9 +10,20 @@ import { RingMark } from './RingMark'
 import { AdjustDrawer } from './AdjustDrawer'
 import { Field } from './Field'
 import { ClassChip } from './ClassChip'
+import { ShareButton } from './ShareButton'
+import { Toast } from './Toast'
 import type { useBuilderIdGenerator } from '@/lib/generator/useBuilderIdGenerator'
+import type { ShareStatus } from '@/lib/share/useShare'
 
-export function BuilderIdResult({ generator }: { generator: ReturnType<typeof useBuilderIdGenerator> }) {
+export function BuilderIdResult({
+  generator,
+  onShare,
+  shareStatus,
+}: {
+  generator: ReturnType<typeof useBuilderIdGenerator>
+  onShare: () => void
+  shareStatus: ShareStatus
+}) {
   const [playReveal, setPlayReveal] = useState(false)
   const prevStatusRef = useRef(generator.photoStatus)
 
@@ -74,17 +85,21 @@ export function BuilderIdResult({ generator }: { generator: ReturnType<typeof us
             <p className="font-mono text-xs text-hhg-ink-soft">{generator.renderError}</p>
           )}
 
-          <button
-            type="button"
-            onClick={generator.download}
-            style={{ '--stagger-index': 2 } as CSSProperties}
-            className="reveal-item self-start rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[15px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
-          >
-            Download PNG
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={generator.download}
+              style={{ '--stagger-index': 2 } as CSSProperties}
+              className="reveal-item rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[15px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
+            >
+              Download PNG
+            </button>
+            <ShareButton status={shareStatus} onShare={onShare} staggerIndex={2} />
+          </div>
 
           <AdjustDrawer focal={generator.focal} onChange={generator.adjustFocal} />
         </div>
+        <Toast message={shareStatus === 'saved-only' ? 'Saved your PNG. Attach it to the post.' : null} />
       </div>
     )
   }

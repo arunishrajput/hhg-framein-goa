@@ -7,14 +7,27 @@ import { ResultPreview } from './ResultPreview'
 import { BuilderIdFlow } from './BuilderIdFlow'
 import { CrewFlow } from './CrewFlow'
 import { useGenerator } from '@/lib/generator/useGenerator'
+import { useShare } from '@/lib/share/useShare'
 import type { Format } from '@/lib/render/tokens'
 
 function PfpFlow() {
-  const { state, loadFile, adjustFocal, download } = useGenerator()
+  const { state, loadFile, adjustFocal, download, caption, filename } = useGenerator()
+  const { share, status: shareStatus } = useShare()
+
+  const onShare = () => {
+    if (!state.blob) return
+    share(state.blob, filename, caption, { format: 'pfp' })
+  }
 
   return (
     <DropZone status={state.status} onFile={loadFile}>
-      <ResultPreview state={state} onDownload={download} adjustFocal={adjustFocal} />
+      <ResultPreview
+        state={state}
+        onDownload={download}
+        adjustFocal={adjustFocal}
+        onShare={onShare}
+        shareStatus={shareStatus}
+      />
     </DropZone>
   )
 }

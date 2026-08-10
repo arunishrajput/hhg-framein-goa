@@ -8,17 +8,24 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { RingMark } from './RingMark'
 import { AdjustDrawer } from './AdjustDrawer'
+import { ShareButton } from './ShareButton'
+import { Toast } from './Toast'
 import type { GeneratorState } from '@/lib/generator/useGenerator'
 import type { Focal } from '@/lib/render/primitives'
+import type { ShareStatus } from '@/lib/share/useShare'
 
 export function ResultPreview({
   state,
   onDownload,
   adjustFocal,
+  onShare,
+  shareStatus,
 }: {
   state: GeneratorState
   onDownload: () => void
   adjustFocal: (partial: Partial<Focal>) => void
+  onShare: () => void
+  shareStatus: ShareStatus
 }) {
   const [playReveal, setPlayReveal] = useState(false)
   const prevStatusRef = useRef(state.status)
@@ -53,16 +60,20 @@ export function ResultPreview({
           />
         </div>
 
-        <button
-          type="button"
-          onClick={onDownload}
-          style={{ '--stagger-index': 1 } as CSSProperties}
-          className="reveal-item rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[15px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
-        >
-          Download PNG
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onDownload}
+            style={{ '--stagger-index': 1 } as CSSProperties}
+            className="reveal-item rounded-full bg-hhg-pink px-7 py-3.5 font-mono text-[15px] font-bold uppercase tracking-[0.10em] text-hhg-cream shadow-[6px_6px_0_var(--hhg-green-deep)] transition-transform active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_var(--hhg-green-deep)]"
+          >
+            Download PNG
+          </button>
+          <ShareButton status={shareStatus} onShare={onShare} staggerIndex={1} />
+        </div>
 
         <AdjustDrawer focal={state.focal} onChange={adjustFocal} />
+        <Toast message={shareStatus === 'saved-only' ? 'Saved your PNG. Attach it to the post.' : null} />
       </div>
     )
   }

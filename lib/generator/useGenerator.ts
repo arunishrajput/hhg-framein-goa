@@ -6,11 +6,12 @@
  *
  * States follow docs/05 P2 exactly: idle -> decoding -> framing -> ready -> error.
  */
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { render } from '@/lib/render'
 import type { Focal } from '@/lib/render/primitives'
 import { decodeImage, DecodeError, DECODE_ERROR } from '@/lib/image/decode'
 import { autoframe, warmAutoframe } from '@/lib/image/autoframe'
+import { buildCaption } from '@/lib/share/xIntent'
 
 export type GeneratorStatus = 'idle' | 'decoding' | 'framing' | 'ready' | 'error'
 
@@ -222,5 +223,7 @@ export function useGenerator() {
     a.click()
   }, [state.dataUrl])
 
-  return { state, loadFile, adjustFocal, reset, download }
+  const caption = useMemo(() => buildCaption({ format: 'pfp' }), [])
+
+  return { state, loadFile, adjustFocal, reset, download, caption, filename: 'hhgoa-2026-pfp.png' }
 }

@@ -12,6 +12,7 @@ import { render, type CrewSpec, type CrewMember } from '@/lib/render'
 import { usePhotoPipeline } from './usePhotoPipeline'
 import { builderClass, classFromSeed, reroll } from '@/lib/identity/builderClass'
 import { crewId } from '@/lib/identity/builderId'
+import { buildCaption } from '@/lib/share/xIntent'
 
 export const MIN_MEMBERS = 2
 export const MAX_MEMBERS = 4
@@ -40,6 +41,7 @@ export function useCrewGenerator() {
   const [classSeed, setClassSeed] = useState(() => builderClass('', '').seed)
 
   const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const [blob, setBlob] = useState<Blob | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
 
   const dataUrlRef = useRef<string | null>(null)
@@ -142,6 +144,7 @@ export function useCrewGenerator() {
           if (dataUrlRef.current) URL.revokeObjectURL(dataUrlRef.current)
           dataUrlRef.current = result.dataUrl
           setDataUrl(result.dataUrl)
+          setBlob(result.blob)
           setRenderError(null)
         },
         () => setRenderError("That card didn't render. Try again."),
@@ -173,6 +176,11 @@ export function useCrewGenerator() {
     a.click()
   }, [dataUrl, teamName])
 
+  // Mirrors the fallback the render spec itself uses (PLACEHOLDER_TEAM), so a shared caption
+  // never names the crew differently than the card in the same PNG does.
+  const displayTeamName = teamName.trim() || PLACEHOLDER_TEAM
+  const caption = useMemo(() => buildCaption({ format: 'crew', teamName: displayTeamName }), [displayTeamName])
+
   return {
     members: order.map((slotIndex, position) => ({
       slotIndex,
@@ -197,7 +205,10 @@ export function useCrewGenerator() {
     rerollClass,
     allReady,
     dataUrl,
+    blob,
     renderError,
     download,
+    caption,
+    filename: `hhgoa-2026-crew-${slugify(teamName)}.png`,
   }
 }

@@ -12,6 +12,7 @@ import { render, type BuilderIdSpec } from '@/lib/render'
 import { usePhotoPipeline } from './usePhotoPipeline'
 import { builderClass, classFromSeed, reroll } from '@/lib/identity/builderClass'
 import { builderId } from '@/lib/identity/builderId'
+import { buildCaption } from '@/lib/share/xIntent'
 
 const PLACEHOLDER_NAME = 'Your Name'
 const PLACEHOLDER_ROLE = 'Your Stack · Role'
@@ -36,6 +37,7 @@ export function useBuilderIdGenerator() {
   const [classSeed, setClassSeed] = useState(() => builderClass('', '').seed)
 
   const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const [blob, setBlob] = useState<Blob | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
 
   const dataUrlRef = useRef<string | null>(null)
@@ -81,6 +83,7 @@ export function useBuilderIdGenerator() {
           if (dataUrlRef.current) URL.revokeObjectURL(dataUrlRef.current)
           dataUrlRef.current = result.dataUrl
           setDataUrl(result.dataUrl)
+          setBlob(result.blob)
           setRenderError(null)
         },
         () => setRenderError("That card didn't render. Try again."),
@@ -112,6 +115,14 @@ export function useBuilderIdGenerator() {
     a.click()
   }, [dataUrl, name])
 
+  // Mirrors the fallback the render spec itself uses, so a shared caption never names someone
+  // differently than the card in the same PNG does.
+  const displayName = name.trim() || PLACEHOLDER_NAME
+  const caption = useMemo(
+    () => buildCaption({ format: 'id', name: displayName, builderClass: classLabel }),
+    [displayName, classLabel],
+  )
+
   return {
     photoStatus: photo.state.status,
     photoDetail: photo.state.detail,
@@ -128,7 +139,10 @@ export function useBuilderIdGenerator() {
     classLabel,
     rerollClass,
     dataUrl,
+    blob,
     renderError,
     download,
+    caption,
+    filename: `hhgoa-2026-id-${slugify(name)}.png`,
   }
 }
