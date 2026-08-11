@@ -38,7 +38,7 @@ export default function Home() {
         <Generator />
       </main>
 
-      <footer className="relative mt-8 overflow-hidden bg-hhg-green py-14">
+      <footer className="relative mt-8 overflow-hidden bg-hhg-green pt-10 pb-24 sm:pt-14 sm:pb-32 lg:pb-40">
         <Image
           src="/brand/goa-palms.webp"
           alt=""
