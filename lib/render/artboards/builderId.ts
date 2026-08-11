@@ -72,10 +72,12 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec, devaMark: HTMLIma
 
   // गोवा accent — the actual brand mark (yellow fill, pink outline), not canvas-set Devanagari:
   // fillText's complex-script shaping for conjuncts (ग + ो + व + ा) isn't reliable across browser
-  // canvas implementations and was rendering as overlapping strokes. Drawn under (before) the
-  // header row so the header text stays fully legible.
+  // canvas implementations and was rendering as overlapping strokes. Sits in the quiet pocket
+  // right of the photo ring — below the header hairline (y 268) and above the NAME label
+  // (y 560) — the only span of the card with nothing else drawn in it at any point, so it never
+  // competes with text regardless of name length or ring content.
   ctx.save()
-  ctx.translate(1260, 110)
+  ctx.translate(1175, 290)
   ctx.rotate((-8 * Math.PI) / 180)
   const devaW = 230
   const devaH = (devaW * devaMark.height) / devaMark.width
