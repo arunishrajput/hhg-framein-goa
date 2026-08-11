@@ -38,7 +38,6 @@ const ORBIT_DASH_OFFSET = 13
 const PIP_R = 64
 
 const BAND_FONT_SIZE = 26
-const BAND_TRACKING = BAND_FONT_SIZE * 0.16 // 0.16em
 const BAND_FONT = `700 ${BAND_FONT_SIZE}px "${FONT.mono}"`
 
 // Each band text occupies one semicircle: upper reads across the top (centred 270°, standard
@@ -64,32 +63,23 @@ export function drawPfp(ctx: Ctx2D, spec: PfpSpec): void {
   const upperUnit = `${EVENT.name} ${EVENT.year} · ${dayMonth} · ${EVENT.place} · `
   const lowerUnit = `${EVENT.tag} · ${EVENT.signatureTime} · `
 
-  textOnArc(
-    ctx,
-    repeatToFill(ctx, upperUnit, BAND_R, BAND_FONT, BAND_TRACKING, ARC_SPAN_RAD),
-    CENTER,
-    CENTER,
-    BAND_R,
-    270,
-    { font: BAND_FONT, color: COLOR.cream, tracking: BAND_TRACKING, align: 'center' },
-  )
+  const upperFill = repeatToFill(ctx, upperUnit, BAND_R, BAND_FONT, ARC_SPAN_RAD)
+  textOnArc(ctx, upperFill.text, CENTER, CENTER, BAND_R, 270, {
+    font: BAND_FONT,
+    color: COLOR.cream,
+    tracking: upperFill.tracking,
+    align: 'center',
+  })
 
-  textOnArc(
-    ctx,
-    repeatToFill(ctx, lowerUnit, BAND_R, BAND_FONT, BAND_TRACKING, ARC_SPAN_RAD),
-    CENTER,
-    CENTER,
-    BAND_R,
-    90,
-    {
-      font: BAND_FONT,
-      color: COLOR.cream,
-      tracking: BAND_TRACKING,
-      align: 'center',
-      flip: true,
-      alpha: 0.78,
-    },
-  )
+  const lowerFill = repeatToFill(ctx, lowerUnit, BAND_R, BAND_FONT, ARC_SPAN_RAD)
+  textOnArc(ctx, lowerFill.text, CENTER, CENTER, BAND_R, 90, {
+    font: BAND_FONT,
+    color: COLOR.cream,
+    tracking: lowerFill.tracking,
+    align: 'center',
+    flip: true,
+    alpha: 0.78,
+  })
 
   dashedOrbit(ctx, CENTER, CENTER, ORBIT_R, ORBIT_STROKE, ORBIT_DASH, COLOR.pink, ORBIT_DASH_OFFSET)
 
@@ -117,25 +107,35 @@ function strokeCircle(ctx: Ctx2D, r: number, stroke: number, color: string): voi
   ctx.stroke()
 }
 
-/** Repeats `unit` whole (never mid-phrase) until it spans at least `targetSpanRad` at radius `r`. */
+/**
+ * Repeats `unit` whole (never mid-phrase) as many times as its own glyph widths — with zero
+ * tracking — fit inside `targetSpanRad`, then hands back the exact tracking that stretches that
+ * repeated string to land on `targetSpanRad` precisely. "Repeat until at least the target" (the
+ * previous approach) overshoots by up to one whole extra unit whenever a unit's angular width
+ * doesn't divide the target evenly, and upper/lower bands both overshooting means they collide at
+ * the seams instead of meeting there — which is exactly the overlap this fixes.
+ */
 function repeatToFill(
   ctx: Ctx2D,
   unit: string,
   r: number,
   font: string,
-  tracking: number,
   targetSpanRad: number,
-): string {
+): { text: string; tracking: number } {
   ctx.save()
   ctx.font = font
-  let total = 0
-  let result = ''
-  do {
-    for (const glyph of Array.from(unit)) {
-      total += (ctx.measureText(glyph).width + tracking) / r
-    }
-    result += unit
-  } while (total < targetSpanRad)
+  const glyphs = Array.from(unit)
+  const unitWidth = glyphs.reduce((sum, g) => sum + ctx.measureText(g).width, 0)
   ctx.restore()
-  return result
+
+  const unitSpanRad = unitWidth / r
+  const n = Math.max(1, Math.floor(targetSpanRad / unitSpanRad))
+  const glyphCount = glyphs.length * n
+  const totalWidth = unitWidth * n
+
+  // Clamped at 0 for the edge case where even one repeat's glyphs alone exceed the target — no
+  // tracking value can shrink glyph advances, so the best fallback is 0 tracking, not negative.
+  const tracking = Math.max(0, (targetSpanRad * r - totalWidth) / glyphCount)
+
+  return { text: unit.repeat(n), tracking }
 }

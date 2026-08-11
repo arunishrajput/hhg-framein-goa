@@ -25,8 +25,6 @@ export interface RingBandText {
   /** Repeated-to-fill unit text for the lower arc (centred 90°, flipped so it reads upright). */
   lower?: string
   fontSize: number
-  /** Defaults to fontSize × 0.16 — docs/03 §1's ratio, "load-bearing" per docs/02 §3. */
-  tracking?: number
 }
 
 export interface RingSpec {
@@ -51,27 +49,38 @@ function strokeCircle(ctx: Ctx2D, cx: number, cy: number, r: number, stroke: num
   ctx.stroke()
 }
 
-/** Repeats `unit` whole (never mid-phrase) until it spans at least `targetSpanRad` at radius `r`. */
+/**
+ * Repeats `unit` whole (never mid-phrase) as many times as its own glyph widths — with zero
+ * tracking — fit inside `targetSpanRad`, then hands back the exact tracking that stretches that
+ * repeated string to land on `targetSpanRad` precisely. "Repeat until at least the target" (the
+ * previous approach) overshoots by up to one whole extra unit whenever a unit's angular width
+ * doesn't divide the target evenly, and upper/lower bands both overshooting means they collide at
+ * the seams instead of meeting there — which is exactly the overlap this fixes. Same fix as
+ * pfp.ts's own copy of this function (see that file's header note on why it isn't shared).
+ */
 function repeatToFill(
   ctx: Ctx2D,
   unit: string,
   r: number,
   font: string,
-  tracking: number,
   targetSpanRad: number,
-): string {
+): { text: string; tracking: number } {
   ctx.save()
   ctx.font = font
-  let total = 0
-  let result = ''
-  do {
-    for (const glyph of Array.from(unit)) {
-      total += (ctx.measureText(glyph).width + tracking) / r
-    }
-    result += unit
-  } while (total < targetSpanRad)
+  const glyphs = Array.from(unit)
+  const unitWidth = glyphs.reduce((sum, g) => sum + ctx.measureText(g).width, 0)
   ctx.restore()
-  return result
+
+  const unitSpanRad = unitWidth / r
+  const n = Math.max(1, Math.floor(targetSpanRad / unitSpanRad))
+  const glyphCount = glyphs.length * n
+  const totalWidth = unitWidth * n
+
+  // Clamped at 0 for the edge case where even one repeat's glyphs alone exceed the target — no
+  // tracking value can shrink glyph advances, so the best fallback is 0 tracking, not negative.
+  const tracking = Math.max(0, (targetSpanRad * r - totalWidth) / glyphCount)
+
+  return { text: unit.repeat(n), tracking }
 }
 
 const ARC_SPAN_RAD = Math.PI // each band text occupies one semicircle — see pfp.ts's note
@@ -105,29 +114,26 @@ export function drawRing(ctx: Ctx2D, spec: RingSpec): void {
 
   if (bandText) {
     const font = `700 ${bandText.fontSize}px "${FONT.mono}"`
-    const tracking = bandText.tracking ?? bandText.fontSize * 0.16
 
     if (bandText.upper) {
-      textOnArc(
-        ctx,
-        repeatToFill(ctx, bandText.upper, BAND_R, font, tracking, ARC_SPAN_RAD),
-        cx,
-        cy,
-        BAND_R,
-        270,
-        { font, color: COLOR.cream, tracking, align: 'center' },
-      )
+      const upperFill = repeatToFill(ctx, bandText.upper, BAND_R, font, ARC_SPAN_RAD)
+      textOnArc(ctx, upperFill.text, cx, cy, BAND_R, 270, {
+        font,
+        color: COLOR.cream,
+        tracking: upperFill.tracking,
+        align: 'center',
+      })
     }
     if (bandText.lower) {
-      textOnArc(
-        ctx,
-        repeatToFill(ctx, bandText.lower, BAND_R, font, tracking, ARC_SPAN_RAD),
-        cx,
-        cy,
-        BAND_R,
-        90,
-        { font, color: COLOR.cream, tracking, align: 'center', flip: true, alpha: 0.78 },
-      )
+      const lowerFill = repeatToFill(ctx, bandText.lower, BAND_R, font, ARC_SPAN_RAD)
+      textOnArc(ctx, lowerFill.text, cx, cy, BAND_R, 90, {
+        font,
+        color: COLOR.cream,
+        tracking: lowerFill.tracking,
+        align: 'center',
+        flip: true,
+        alpha: 0.78,
+      })
     }
   }
 

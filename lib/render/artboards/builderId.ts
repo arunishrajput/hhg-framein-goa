@@ -39,6 +39,9 @@ interface Row {
   label: string
   labelBaselineY: number
   valueBaselineY: number
+  /** The next row's labelBaselineY (or the next fixed landmark below) — a wrapped value must
+   * clear this or it collides with whatever's drawn next. */
+  nextBoundaryY: number
   value: string
   font: (size: number) => string
   color: string
@@ -47,7 +50,14 @@ interface Row {
   maxLines: number
 }
 
-export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
+// Approximate metrics used only to keep a wrapped, multi-line value clear of the row below it —
+// see the fitText call site. fitText itself only fits width x line count; it has no idea a fixed
+// number of px separates this row's baseline from the next row's label.
+const ROW_LABEL_CAP_HEIGHT = 18 // LABEL_FONT's own cap-height above its baseline, px
+const ROW_MARGIN = 12 // breathing room between a wrapped value's descent and the next label
+const LINE_DESCENT_RATIO = 0.28 // approx. descent below a line's own baseline, in em
+
+export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec, devaMark: HTMLImageElement): void {
   ctx.clearRect(0, 0, W, H)
 
   // Bleed
@@ -60,15 +70,16 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
   ctx.fillStyle = COLOR.cream
   ctx.fill()
 
-  // गोवा accent — drawn under (before) the header row so the header text stays fully legible
+  // गोवा accent — the actual brand mark (yellow fill, pink outline), not canvas-set Devanagari:
+  // fillText's complex-script shaping for conjuncts (ग + ो + व + ा) isn't reliable across browser
+  // canvas implementations and was rendering as overlapping strokes. Drawn under (before) the
+  // header row so the header text stays fully legible.
   ctx.save()
-  ctx.translate(1250, 250)
+  ctx.translate(1260, 110)
   ctx.rotate((-8 * Math.PI) / 180)
-  ctx.font = `700 160px "${FONT.deva}"`
-  ctx.fillStyle = COLOR.yellow
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillText(EVENT.deva, 0, 0)
+  const devaW = 230
+  const devaH = (devaW * devaMark.height) / devaMark.width
+  ctx.drawImage(devaMark, 0, 0, devaW, devaH)
   ctx.restore()
 
   // Header
@@ -113,6 +124,7 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
       label: LABEL.name,
       labelBaselineY: 560,
       valueBaselineY: 660,
+      nextBoundaryY: 800,
       value: spec.name,
       font: (s) => `700 ${s}px "${FONT.display}"`,
       color: COLOR.ink,
@@ -124,6 +136,7 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
       label: LABEL.role,
       labelBaselineY: 800,
       valueBaselineY: 872,
+      nextBoundaryY: 1010,
       value: spec.role,
       font: (s) => `400 ${s}px "${FONT.mono}"`,
       color: COLOR.ink,
@@ -135,6 +148,7 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
       label: LABEL.class,
       labelBaselineY: 1010,
       valueBaselineY: 1090,
+      nextBoundaryY: spec.handle ? 1210 : 1458,
       value: spec.builderClass,
       font: (s) => `italic 700 ${s}px "${FONT.display}"`,
       color: COLOR.pink,
@@ -148,6 +162,7 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
       label: LABEL.handle,
       labelBaselineY: 1210,
       valueBaselineY: 1266,
+      nextBoundaryY: 1458, // day rail
       value: `@${spec.handle.replace(/^@/, '')}`,
       font: (s) => `400 ${s}px "${FONT.mono}"`,
       color: COLOR.inkSoft,
@@ -171,12 +186,34 @@ export function drawBuilderId(ctx: Ctx2D, spec: BuilderIdSpec): void {
     ctx.lineWidth = 2
     ctx.stroke()
 
-    const { size, lines } = fitText(ctx, row.value, COLUMN_WIDTH, {
+    let { size, lines } = fitText(ctx, row.value, COLUMN_WIDTH, {
       font: row.font,
       maxSize: row.maxSize,
       minSize: row.minSize,
       maxLines: row.maxLines,
     })
+
+    // fitText only fits width x line count — it doesn't know a fixed number of px separates this
+    // row's baseline from the next row's label. A short value at maxSize wrapping to 2 lines only
+    // because two words don't both fit on one line (e.g. "Arunish" / "Rajput") can be tall enough
+    // to run straight into whatever's drawn next, so re-fit against a size cap that keeps a
+    // wrapped block clear of that boundary.
+    if (lines.length > 1) {
+      const budget = row.nextBoundaryY - ROW_LABEL_CAP_HEIGHT - ROW_MARGIN - row.valueBaselineY
+      const safeMaxSize = Math.max(
+        row.minSize,
+        Math.floor(budget / ((lines.length - 1) * LINE_HEIGHT_RATIO + LINE_DESCENT_RATIO)),
+      )
+      if (size > safeMaxSize) {
+        ;({ size, lines } = fitText(ctx, row.value, COLUMN_WIDTH, {
+          font: row.font,
+          maxSize: safeMaxSize,
+          minSize: row.minSize,
+          maxLines: row.maxLines,
+        }))
+      }
+    }
+
     ctx.font = row.font(size)
     ctx.fillStyle = row.color
     ctx.textAlign = 'left'
